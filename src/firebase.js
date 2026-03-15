@@ -2,13 +2,13 @@ import { initializeApp } from "firebase/app";
 import { getAuth } from "firebase/auth";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyDhhuAATsMWs9mGO2cqLaNHmBY6rQwBnjE",
-  authDomain: "elevatorpro-3c25a.firebaseapp.com",
-  projectId: "elevatorpro-3c25a",
-  storageBucket: "elevatorpro-3c25a.firebasestorage.app",
-  messagingSenderId: "562314344117",
-  appId: "1:562314344117:web:634eb446d6b1be99e270fc",
-  measurementId: "G-L2CM1DF79J"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 const app = initializeApp(firebaseConfig);
