@@ -463,14 +463,15 @@ export default function App(){
     if(firebaseUser){
       const email = firebaseUser.email.toLowerCase();
       
-      // Reglas de asignación automática de rol por dominio/correo
+      // SOLO estos correos específicos tendrán los roles especiales.
+      // Cualquier otro correo que se registre será Cliente.
       let assignedRole = "cliente";
       let assignedCargo = "Residente / Administrador Comunidad";
 
-      if (email.includes("@admin.com") || email.includes("admin@")) {
+      if (email === "administrador@saschile.cl" || email === "admin@saschile.cl") {
         assignedRole = "administrador";
         assignedCargo = "Jefe de Operaciones";
-      } else if (email.includes("@tecnico.com") || email.includes("tecnico@")) {
+      } else if (email === "tecnico@saschile.cl" || email === "tecnico1@saschile.cl") {
         assignedRole = "tecnico";
         assignedCargo = "Técnico de Terreno";
       }
