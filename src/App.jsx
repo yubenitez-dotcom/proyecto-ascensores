@@ -251,14 +251,18 @@ function Badge({label,color}){
 }
 
 // ─── MAINTENANCE CARD ──────────────────────────────────────────────────────────
-function MaintCard({maint,onUpdate,readOnly=false}){
+function MaintCard({maint,onUpdate,readOnly=false, role, user}){
   const[open,setOpen]=useState(false);
   const done=maint.checklist.filter(c=>c.done).length;
   const pct=Math.round(done/maint.checklist.length*100);
-  const tc=maint.type==="preventiva"?"#60a5fa":"#f87171";
+  const tc=maint.type==="preventiva"?"#60a5fa":maint.type==="correctiva"?"#f87171":"#fbbf24";
   const sc={en_progreso:"#fbbf24",completada:"#34d399",programada:"#94a3b8"}[maint.status];
   const sl={en_progreso:"En Progreso",completada:"Completada",programada:"Programada"}[maint.status];
   const pc=maint.priority==="alta"?"#f87171":"#94a3b8";
+
+  // Technician can update if it's their task OR Admin can update anything
+  const canUpdate = role === "administrador" || (role === "tecnico" && maint.technician === user.name);
+
   return(
     <div style={{background:"linear-gradient(145deg,#080e1c,#0d1628)",border:"1px solid rgba(255,255,255,0.05)",borderRadius:16,overflow:"hidden"}}>
       <div style={{padding:22}}>
@@ -284,8 +288,8 @@ function MaintCard({maint,onUpdate,readOnly=false}){
         </div>
         <div style={{display:"flex",gap:10}}>
           <Btn variant="ghost" onClick={()=>setOpen(!open)} style={{flex:1}}><I n={open?"chevU":"chevD"} size={14} color="#64748b"/>{open?"Cerrar":"Ver Checklist"}</Btn>
-          {!readOnly&&maint.status==="programada"  &&<Btn variant="primary" onClick={()=>onUpdate(maint.id,"iniciar")}   style={{flex:1}}><I n="play" size={13} color="#fff"/>Iniciar</Btn>}
-          {!readOnly&&maint.status==="en_progreso" &&<Btn variant="success" onClick={()=>onUpdate(maint.id,"completar")} style={{flex:1}}><I n="check" size={14} color="#fff"/>Completar</Btn>}
+          {!readOnly && canUpdate && maint.status==="programada"  &&<Btn variant="primary" onClick={()=>onUpdate(maint.id,"iniciar")}   style={{flex:1}}><I n="play" size={13} color="#fff"/>Iniciar</Btn>}
+          {!readOnly && canUpdate && maint.status==="en_progreso" &&<Btn variant="success" onClick={()=>onUpdate(maint.id,"completar")} style={{flex:1}}><I n="check" size={14} color="#fff"/>Completar</Btn>}
           {maint.status==="completada"             &&<Btn variant="ghost" disabled style={{flex:1,opacity:0.4}}><I n="check" size={14} color="#34d399"/>Finalizada</Btn>}
         </div>
       </div>
@@ -293,8 +297,8 @@ function MaintCard({maint,onUpdate,readOnly=false}){
         <div style={{borderTop:"1px solid rgba(255,255,255,0.04)",padding:"4px 22px 22px"}}>
           <div style={{paddingTop:14,display:"flex",flexDirection:"column",gap:6}}>
             {maint.checklist.map((item,idx)=>(
-              <div key={idx} onClick={()=>!readOnly&&maint.status!=="completada"&&onUpdate(maint.id,"toggle",idx)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:item.done?"rgba(52,211,153,0.06)":"rgba(255,255,255,0.02)",borderRadius:10,cursor:readOnly||maint.status==="completada"?"default":"pointer",border:`1px solid ${item.done?"rgba(52,211,153,0.16)":"rgba(255,255,255,0.04)"}`,transition:"all 0.2s ease"}}
-                onMouseEnter={e=>!readOnly&&(e.currentTarget.style.transform="translateX(4px)")}
+              <div key={idx} onClick={()=>!readOnly&&maint.status!=="completada"&&canUpdate&&onUpdate(maint.id,"toggle",idx)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 14px",background:item.done?"rgba(52,211,153,0.06)":"rgba(255,255,255,0.02)",borderRadius:10,cursor:(readOnly||maint.status==="completada"||!canUpdate)?"default":"pointer",border:`1px solid ${item.done?"rgba(52,211,153,0.16)":"rgba(255,255,255,0.04)"}`,transition:"all 0.2s ease"}}
+                onMouseEnter={e=>!readOnly&&canUpdate&&(e.currentTarget.style.transform="translateX(4px)")}
                 onMouseLeave={e=>e.currentTarget.style.transform="translateX(0)"}
               >
                 <div style={{width:20,height:20,borderRadius:6,flexShrink:0,background:item.done?"linear-gradient(135deg,#065f46,#34d399)":"rgba(255,255,255,0.05)",border:`1.5px solid ${item.done?"#34d399":"rgba(255,255,255,0.1)"}`,display:"flex",alignItems:"center",justifyContent:"center",transition:"all 0.25s cubic-bezier(0.34,1.56,0.64,1)",boxShadow:item.done?"0 0 10px rgba(52,211,153,0.4)":"none",transform:item.done?"scale(1.08)":"scale(1)"}}>
@@ -306,6 +310,31 @@ function MaintCard({maint,onUpdate,readOnly=false}){
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+// ─── CARDS ────────────────────────────────────────────────────────────────────
+function ElevCard({e, onClick, role}){
+  const stColor=SC[e.status].color;
+  return(
+    <div onClick={onClick} style={{background:"linear-gradient(145deg,#0a1120,#0f172a)",borderRadius:16,padding:24,border:"1px solid rgba(255,255,255,0.06)",cursor:"pointer",position:"relative",overflow:"hidden",transition:"all 0.3s cubic-bezier(0.25,0.8,0.25,1)",boxShadow:"0 10px 30px rgba(0,0,0,0.3)"}}
+      onMouseEnter={ev=>{ev.currentTarget.style.transform="translateY(-4px)";ev.currentTarget.style.borderColor="rgba(99,102,241,0.3)";ev.currentTarget.style.boxShadow="0 20px 40px rgba(0,0,0,0.4), 0 0 20px rgba(99,102,241,0.1)";}}
+      onMouseLeave={ev=>{ev.currentTarget.style.transform="translateY(0)";ev.currentTarget.style.borderColor="rgba(255,255,255,0.06)";ev.currentTarget.style.boxShadow="0 10px 30px rgba(0,0,0,0.3)";}}
+    >
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:20}}>
+        <div>
+          <div style={{fontSize:18,fontWeight:700,color:"#f1f5f9",fontFamily:"'Outfit',sans-serif",marginBottom:4}}>{e.name}</div>
+          <div style={{fontSize:13,color:"#64748b",fontFamily:"'Outfit',sans-serif",display:"flex",alignItems:"center",gap:6}}><I n="pin" size={13}/>{e.building}</div>
+        </div>
+        <div style={{display:"flex",gap:8}}>
+          <Badge label={SC[e.status].label} color={stColor}/>
+          {role === "administrador" && (
+            <div style={{padding:6,background:"rgba(255,255,255,0.05)",borderRadius:8,color:"#94a3b8",cursor:"pointer"}}><I n="edit" size={16}/></div>
+          )}
+        </div>
+      </div>
+      <div style={{fontSize:11,color:"#334155",fontFamily:"'Outfit',sans-serif",marginTop:2}}>{e.brand} {e.model} · {e.location}</div>
     </div>
   );
 }
@@ -522,47 +551,16 @@ export default function App(){
   const fuera=elevs.filter(e=>e.status==="fuera").length;
   const unreadAlerts=alerts.filter(a=>!a.read).length;
 
-  const updateMaint=(id,action,idx)=>setMaints(prev=>prev.map(m=>{
-    if(m.id!==id)return m;
-    if(action==="toggle"){const cl=[...m.checklist];cl[idx]={...cl[idx],done:!cl[idx].done};return{...m,checklist:cl};}
-    if(action==="iniciar"){toast("Mantención iniciada correctamente.");return{...m,status:"en_progreso"};}
-    if(action==="completar"){toast("Mantención completada con éxito.");setElevs(p=>p.map(e=>e.id===m.elevatorId?{...e,status:"operativo"}:e));return{...m,status:"completada"};}
-    return m;
-  }));
-
-  const addMaint=()=>{
-    if(!nm.title||!nm.building)return;
-    setMaints(p=>[{id:Date.now(),elevatorId:1,type:nm.type,status:"programada",title:nm.title,building:nm.building,client:"—",technician:nm.technician||"Sin asignar",date:nm.date||"2025-01-01",priority:nm.priority,checklist:Array(10).fill(0).map((_,i)=>({item:`Tarea ${i+1}`,done:false}))}, ...p]);
-    setShowForm(false);setNm({title:"",building:"",technician:"",type:"preventiva",date:"",priority:"normal"});
-    toast("Mantención registrada correctamente.");
-  };
-
-  const markAlertRead=(id)=>setAlerts(prev=>prev.map(a=>a.id===id?{...a,read:true}:a));
-
-  // Navigation by role
-  const NAV = {
-    administrador:[
-      {id:"dashboard",    icon:"dashboard",  lbl:"Panel General"},
-      {id:"ascensores",   icon:"elevator",   lbl:"Ascensores"},
-      {id:"mantenciones", icon:"wrench",     lbl:"Mantenciones"},
-      {id:"clientes",     icon:"building",   lbl:"Clientes"},
-      {id:"tecnicos",     icon:"users",      lbl:"Técnicos"},
-      {id:"alertas",      icon:"bell",       lbl:"Alertas", badge:unreadAlerts},
-      {id:"informes",     icon:"chart",      lbl:"Informes"},
-    ],
-    tecnico:[
-      {id:"dashboard",    icon:"dashboard",  lbl:"Mi Panel"},
-      {id:"mantenciones", icon:"wrench",     lbl:"Mis Tareas"},
-      {id:"ascensores",   icon:"elevator",   lbl:"Equipos"},
-      {id:"alertas",      icon:"bell",       lbl:"Alertas", badge:unreadAlerts},
-    ],
-    cliente:[
-      {id:"dashboard",    icon:"dashboard",  lbl:"Mi Panel"},
-      {id:"ascensores",   icon:"elevator",   lbl:"Mis Ascensores"},
-      {id:"mantenciones", icon:"wrench",     lbl:"Historial"},
-      {id:"informes",     icon:"reports",    lbl:"Informes"},
-    ],
-  }[role]||[];
+  // --- NAVIGATION (RBAC filters) ---
+  const NAV=[
+    {id:"dashboard",icon:"chart",label:"Panel General"},
+    {id:"ascensores",icon:"elevator",label:"Ascensores"},
+    {id:"mantenciones",icon:"wrench",label:"Mantenciones"},
+    {id:"alertas",icon:"bell",label:"Alertas", badge:unreadAlerts},
+    ...(role !== "cliente" ? [{id:"informes",icon:"reports",label:"Informes"}] : []),
+    ...(role === "administrador" ? [{id:"clientes",icon:"building",label:"Clientes"}] : []),
+    ...(role === "administrador" ? [{id:"tecnicos",icon:"users",label:"Técnicos"}] : []),
+  ];
 
   const viewTitle={
     dashboard:    role==="administrador"?"Panel General":role==="tecnico"?"Mi Panel":"Mi Panel",
@@ -582,6 +580,23 @@ export default function App(){
   const myMaints=role==="tecnico"?maints.filter(m=>m.technician===user.name):maints;
   // Client elevators
   const myElevs=role==="cliente"?elevs.filter(e=>e.client===clients.find(c=>c.contact===user.name)?.name):elevs;
+
+  const updateMaint=(id,action,idx)=>setMaints(prev=>prev.map(m=>{
+    if(m.id!==id)return m;
+    if(action==="toggle"){const cl=[...m.checklist];cl[idx]={...cl[idx],done:!cl[idx].done};return{...m,checklist:cl};}
+    if(action==="iniciar"){toast("Mantención iniciada correctamente.");setElevs(p=>p.map(e=>e.id===m.elevatorId?{...e,status:"en_progreso"}:e));return{...m,status:"en_progreso"};}
+    if(action==="completar"){toast("Mantención completada con éxito.");setElevs(p=>p.map(e=>e.id===m.elevatorId?{...e,status:"operativo"}:e));return{...m,status:"completada"};}
+    return m;
+  }));
+
+  const addMaint=()=>{
+    if(!nm.title||!nm.building)return;
+    setMaints(p=>[{id:Date.now(),elevatorId:1,type:nm.type,status:"programada",title:nm.title,building:nm.building,client:"—",technician:nm.technician||"Sin asignar",date:nm.date||"2025-01-01",priority:nm.priority,checklist:Array(10).fill(0).map((_,i)=>({item:`Tarea ${i+1}`,done:false}))}, ...p]);
+    setShowForm(false);setNm({title:"",building:"",technician:"",type:"preventiva",date:"",priority:"normal"});
+    toast("Mantención registrada correctamente.");
+  };
+
+  const markAlertRead=(id)=>setAlerts(prev=>prev.map(a=>a.id===id?{...a,read:true}:a));
 
   return(
     <div style={{minHeight:"100vh",background:"#050a14",color:"#f1f5f9",fontFamily:"'Outfit','Segoe UI',sans-serif",display:"flex",position:"relative",overflow:"hidden"}}>
@@ -631,7 +646,7 @@ export default function App(){
                 onMouseLeave={e=>!act&&(e.currentTarget.style.background="transparent")}
               >
                 <I n={item.icon} size={17} color={act?"#818cf8":"#334155"} style={{filter:act?"drop-shadow(0 0 6px rgba(129,140,248,0.7))":"none",transition:"filter 0.2s"}}/>
-                {sideOpen&&<span style={{fontSize:13,fontWeight:500,color:act?"#c7d2fe":"#334155",whiteSpace:"nowrap",fontFamily:"'Outfit',sans-serif"}}>{item.lbl}</span>}
+                {sideOpen&&<span style={{fontSize:13,fontWeight:500,color:act?"#c7d2fe":"#334155",whiteSpace:"nowrap",fontFamily:"'Outfit',sans-serif"}}>{item.label}</span>}
                 {item.badge>0&&<div style={{position:"absolute",top:8,right:sideOpen?12:8,width:16,height:16,background:"#ef4444",borderRadius:"50%",fontSize:9,color:"#fff",display:"flex",alignItems:"center",justifyContent:"center",fontWeight:700}}>{item.badge}</div>}
               </div>
             );
@@ -762,7 +777,7 @@ export default function App(){
                   <ST>Mis Tareas Pendientes</ST>
                   <div style={{display:"flex",flexDirection:"column",gap:12}}>
                     {myMaints.filter(m=>m.status!=="completada").slice(0,3).map(m=>(
-                      <MaintCard key={m.id} maint={m} onUpdate={updateMaint}/>
+                      <MaintCard key={m.id} maint={m} onUpdate={updateMaint} role={role} user={user}/>
                     ))}
                     {myMaints.filter(m=>m.status!=="completada").length===0&&<div style={{textAlign:"center",padding:"24px 0",color:"#334155",fontSize:13,fontFamily:"'Outfit',sans-serif"}}>No tienes tareas pendientes.</div>}
                   </div>
@@ -812,7 +827,9 @@ export default function App(){
                 {role==="administrador"&&<Btn variant="primary" onClick={()=>toast("Funcionalidad: agregar nuevo ascensor")}><I n="plus" size={14} color="#fff"/>Nuevo Ascensor</Btn>}
               </div>
               <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fill,minmax(320px,1fr))",gap:20}}>
-                {filteredElevs.map(e=>{
+                {filteredElevs
+                  .filter(e => role === "cliente" ? e.client === clients.find(c => c.contact === user.name)?.name : true)
+                  .map(e=>{
                   const cfg=SC[e.status];
                   return(
                     <div key={e.id} onClick={()=>{setSelected(e);setModalType("elevator");}} style={{background:"linear-gradient(145deg,#080e1c,#0d1628)",border:`1px solid ${cfg.color}20`,borderRadius:20,padding:22,cursor:"pointer",transition:"all 0.35s cubic-bezier(0.34,1.56,0.64,1)",position:"relative",overflow:"hidden"}}
@@ -851,7 +868,7 @@ export default function App(){
             <div style={{animation:"fadeIn 0.4s ease"}}>
               <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:22}}>
                 <div style={{fontSize:12,color:"#1e3a5f",letterSpacing:"0.12em",fontFamily:"'Outfit',sans-serif"}}>{(role==="tecnico"?myMaints:maints).length} REGISTROS</div>
-                {role==="administrador"&&<Btn variant="primary" onClick={()=>setShowForm(true)}><I n="plus" size={14} color="#fff"/>Nueva Mantención</Btn>}
+                {role === "administrador" && <Btn variant="primary" onClick={()=>setShowForm(true)}><I n="plus" size={14} color="#fff"/>Nueva Mantención</Btn>}
               </div>
               {showForm&&role==="administrador"&&(
                 <div style={{background:"linear-gradient(145deg,#080e1c,#0d1628)",borderRadius:16,padding:24,marginBottom:22,border:"1px solid rgba(99,102,241,0.2)",animation:"slideUp 0.3s ease"}}>
@@ -871,7 +888,18 @@ export default function App(){
                 </div>
               )}
               <div style={{display:"flex",flexDirection:"column",gap:14}}>
-                {(role==="tecnico"?myMaints:maints).map(m=><MaintCard key={m.id} maint={m} onUpdate={updateMaint} readOnly={role==="cliente"}/>)}
+                {maints
+                  .filter(m => {
+                    if (role === "cliente") {
+                      const clientElevators = myElevs.map(e => e.id);
+                      return clientElevators.includes(m.elevatorId);
+                    }
+                    if (role === "tecnico") {
+                      return m.technician === user.name;
+                    }
+                    return true;
+                  })
+                  .map(m=><MaintCard key={m.id} maint={m} onUpdate={updateMaint} readOnly={role==="cliente"} role={role} user={user}/>)}
               </div>
             </div>
           )}
