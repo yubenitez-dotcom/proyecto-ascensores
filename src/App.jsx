@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, onAuthStateChanged, signOut } from "firebase/auth";
+import { auth } from "./firebase";
 
 // ─── ICONS ────────────────────────────────────────────────────────────────────
 const I = ({ n, size = 16, color = "currentColor", style = {} }) => {
@@ -68,10 +70,11 @@ const Logo = ({ collapsed = false }) => (
 );
 
 // ─── DATA ─────────────────────────────────────────────────────────────────────
+// NOTE: Now using Firebase for real authentication. Users are matched by email to these roles.
+// New registered users will default to "cliente".
 const USERS = [
-  { id: 1, email: "admin@saschile.cl",   password: "admin123",   name: "Carlos Mendoza",  role: "administrador", cargo: "Jefe de Operaciones"            },
-  { id: 2, email: "tecnico@saschile.cl", password: "tecnico123", name: "Roberto Silva",   role: "tecnico",       cargo: "Técnico de Terreno"              },
-  { id: 3, email: "cliente@saschile.cl", password: "cliente123", name: "Ana González",    role: "cliente",       cargo: "Administradora de Edificio"      },
+  { email: "admin@saschile.cl",   name: "Administrador Fijo",  role: "administrador", cargo: "Jefe de Operaciones" },
+  { email: "tecnico@saschile.cl", name: "Técnico Fijo",        role: "tecnico",       cargo: "Técnico de Terreno" },
 ];
 
 const ELEVATORS_DATA = [
@@ -325,27 +328,39 @@ function Modal({title,children,onClose,maxW=520}){
 // ═══════════════════════════════════════════════════════════════════════════════
 // ─── LOGIN SCREEN ─────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
-function LoginScreen({onLogin}){
+function LoginScreen({setGlobalError}){
+  const[isLogin,setIsLogin]=useState(true);
   const[email,setEmail]=useState("");
   const[pass,setPass]=useState("");
+  const[name,setName]=useState("");
   const[error,setError]=useState("");
   const[loading,setLoading]=useState(false);
 
-  const handleLogin=()=>{
-    setError(""); setLoading(true);
-    setTimeout(()=>{
-      const user=USERS.find(u=>u.email===email&&u.password===pass);
-      if(user){ onLogin(user); }
-      else { setError("Correo o contraseña incorrectos."); }
-      setLoading(false);
-    },600);
-  };
+  const handleSubmit=async ()=>{
+    if(!email||!pass) {setError("Por favor completa todos los campos.");return;}
+    if(!isLogin&&!name) {setError("Por favor ingresa tu nombre.");return;}
+    if(pass.length<6) {setError("La contraseña debe tener al menos 6 caracteres.");return;}
 
-  const hints=[
-    {label:"Administrador",email:"admin@saschile.cl",    pass:"admin123"},
-    {label:"Técnico",      email:"tecnico@saschile.cl",  pass:"tecnico123"},
-    {label:"Cliente",      email:"cliente@saschile.cl",  pass:"cliente123"},
-  ];
+    setError(""); setLoading(true);
+    try {
+      if(isLogin){
+        await signInWithEmailAndPassword(auth, email, pass);
+      } else {
+        // En una app real de producción, guardaríamos el nombre en una base de datos (Firestore).
+        // Por ahora, solo lo registramos en Auth.
+        await createUserWithEmailAndPassword(auth, email, pass);
+      }
+    } catch(err) {
+      if(err.code==="auth/invalid-credential"||err.code==="auth/user-not-found"||err.code==="auth/wrong-password"){
+         setError("Correo o contraseña incorrectos.");
+      } else if(err.code==="auth/email-already-in-use"){
+         setError("Este correo ya está registrado.");
+      } else {
+         setError("Ocurrió un error. Intenta nuevamente.");
+      }
+    }
+    setLoading(false);
+  };
 
   const inp={width:"100%",padding:"13px 16px 13px 44px",background:"rgba(255,255,255,0.04)",border:"1px solid rgba(255,255,255,0.08)",borderRadius:12,color:"#e2e8f0",fontSize:14,outline:"none",boxSizing:"border-box",fontFamily:"'Outfit',sans-serif",transition:"border-color 0.2s"};
 
@@ -354,26 +369,16 @@ function LoginScreen({onLogin}){
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Roboto+Mono:wght@400;600&display=swap');
         *{box-sizing:border-box;margin:0;padding:0}
-        @keyframes rpl{to{transform:scale(4);opacity:0}}
-        @keyframes fadeIn{from{opacity:0}to{opacity:1}}
-        @keyframes slideUp{from{opacity:0;transform:translateY(26px) scale(0.97)}to{opacity:1;transform:translateY(0) scale(1)}}
-        @keyframes blink{from{opacity:1}to{opacity:0.1}}
-        @keyframes toastIn{from{opacity:0;transform:translateX(20px)}to{opacity:1;transform:translateX(0)}}
         @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.55}}
         @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-12px)}}
         input::placeholder{color:#1e3a5f}
         input:focus{border-color:rgba(99,102,241,0.5)!important;box-shadow:0 0 0 3px rgba(99,102,241,0.12)!important}
-        ::-webkit-scrollbar{width:4px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:#1a263d;border-radius:2px}
       `}</style>
-
-      {/* Background elements */}
       <div style={{position:"fixed",inset:0,backgroundImage:"linear-gradient(rgba(255,255,255,0.008) 1px,transparent 1px),linear-gradient(90deg,rgba(255,255,255,0.008) 1px,transparent 1px)",backgroundSize:"56px 56px",pointerEvents:"none"}}/>
       <div style={{position:"fixed",top:"10%",left:"15%",width:600,height:600,background:"radial-gradient(circle,rgba(30,64,175,0.08) 0%,transparent 65%)",pointerEvents:"none"}}/>
       <div style={{position:"fixed",bottom:"10%",right:"10%",width:500,height:500,background:"radial-gradient(circle,rgba(99,102,241,0.06) 0%,transparent 65%)",pointerEvents:"none"}}/>
 
-      <div style={{width:"100%",maxWidth:440,animation:"slideUp 0.5s cubic-bezier(0.34,1.56,0.64,1)"}}>
-
-        {/* Logo & header */}
+      <div style={{width:"100%",maxWidth:440,zIndex:10}}>
         <div style={{textAlign:"center",marginBottom:36}}>
           <div style={{display:"flex",justifyContent:"center",marginBottom:20}}>
             <svg width="64" height="64" viewBox="0 0 40 40" fill="none" style={{animation:"float 4s ease-in-out infinite"}}>
@@ -387,55 +392,46 @@ function LoginScreen({onLogin}){
               <defs><linearGradient id="loginGrad" x1="0" y1="0" x2="40" y2="40"><stop offset="0%" stopColor="#1e40af"/><stop offset="100%" stopColor="#6d28d9"/></linearGradient></defs>
             </svg>
           </div>
-          <div style={{fontSize:28,fontWeight:700,color:"#f1f5f9",fontFamily:"'Outfit',sans-serif",letterSpacing:"0.04em",lineHeight:1}}>
-            SAS <span style={{color:"#818cf8",fontWeight:300}}>CHILE</span>
-          </div>
+          <div style={{fontSize:28,fontWeight:700,color:"#f1f5f9",fontFamily:"'Outfit',sans-serif",letterSpacing:"0.04em",lineHeight:1}}>SAS <span style={{color:"#818cf8",fontWeight:300}}>CHILE</span></div>
           <div style={{fontSize:12,color:"#334155",marginTop:6,letterSpacing:"0.16em",fontFamily:"'Outfit',sans-serif"}}>GESTIÓN DE ASCENSORES</div>
-          <div style={{fontSize:13,color:"#475569",marginTop:16,fontFamily:"'Outfit',sans-serif"}}>Ingrese sus credenciales para acceder al sistema</div>
         </div>
 
-        {/* Form card */}
         <div style={{background:"linear-gradient(145deg,#080e1c,#0d1628)",borderRadius:20,padding:32,border:"1px solid rgba(255,255,255,0.07)",boxShadow:"0 32px 64px rgba(0,0,0,0.5)"}}>
+          
+          <div style={{display:"flex",marginBottom:24,background:"rgba(255,255,255,0.03)",borderRadius:12,padding:4}}>
+            <button onClick={()=>{setIsLogin(true);setError("");}} style={{flex:1,padding:"10px 0",border:"none",borderRadius:8,background:isLogin?"linear-gradient(135deg,#1e3a8a,#4f46e5)":"transparent",color:isLogin?"#fff":"#64748b",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Outfit',sans-serif",transition:"all 0.2s"}}>{isLogin?"Iniciar Sesión":"Entrar"}</button>
+            <button onClick={()=>{setIsLogin(false);setError("");}} style={{flex:1,padding:"10px 0",border:"none",borderRadius:8,background:!isLogin?"linear-gradient(135deg,#1e3a8a,#4f46e5)":"transparent",color:!isLogin?"#fff":"#64748b",fontSize:13,fontWeight:600,cursor:"pointer",fontFamily:"'Outfit',sans-serif",transition:"all 0.2s"}}>{!isLogin?"Registrarse":"Crear Cuenta"}</button>
+          </div>
+
+          {!isLogin&&<div style={{marginBottom:18}}>
+            <label style={{fontSize:11,color:"#475569",letterSpacing:"0.12em",fontFamily:"'Outfit',sans-serif",display:"block",marginBottom:8}}>NOMBRE COMPLETO</label>
+            <div style={{position:"relative"}}>
+              <I n="user" size={16} color="#334155" style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)"}}/>
+              <input style={inp} type="text" placeholder="Ej. Ana González" value={name} onChange={e=>setName(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()}/>
+            </div>
+          </div>}
 
           <div style={{marginBottom:18}}>
             <label style={{fontSize:11,color:"#475569",letterSpacing:"0.12em",fontFamily:"'Outfit',sans-serif",display:"block",marginBottom:8}}>CORREO ELECTRÓNICO</label>
             <div style={{position:"relative"}}>
               <I n="mail" size={16} color="#334155" style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)"}}/>
-              <input style={inp} type="email" placeholder="correo@saschile.cl" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
+              <input style={inp} type="email" placeholder="correo@ejemplo.com" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()}/>
             </div>
           </div>
 
           <div style={{marginBottom:24}}>
-            <label style={{fontSize:11,color:"#475569",letterSpacing:"0.12em",fontFamily:"'Outfit',sans-serif",display:"block",marginBottom:8}}>CONTRASEÑA</label>
+            <label style={{fontSize:11,color:"#475569",letterSpacing:"0.12em",fontFamily:"'Outfit',sans-serif",display:"block",marginBottom:8}}>CONTRASEÑA {!isLogin&&"(Mín. 6 caracteres)"}</label>
             <div style={{position:"relative"}}>
               <I n="lock" size={16} color="#334155" style={{position:"absolute",left:14,top:"50%",transform:"translateY(-50%)"}}/>
-              <input style={inp} type="password" placeholder="••••••••" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleLogin()}/>
+              <input style={inp} type="password" placeholder="••••••••" value={pass} onChange={e=>setPass(e.target.value)} onKeyDown={e=>e.key==="Enter"&&handleSubmit()}/>
             </div>
           </div>
 
-          {error&&<div style={{fontSize:13,color:"#f87171",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:18,fontFamily:"'Outfit',sans-serif",display:"flex",alignItems:"center",gap:8}}>
-            <I n="alert" size={14} color="#f87171"/>{error}
-          </div>}
+          {error&&<div style={{fontSize:13,color:"#f87171",background:"rgba(248,113,113,0.08)",border:"1px solid rgba(248,113,113,0.2)",borderRadius:10,padding:"10px 14px",marginBottom:18,fontFamily:"'Outfit',sans-serif",display:"flex",alignItems:"center",gap:8}}><I n="alert" size={14} color="#f87171"/>{error}</div>}
 
-          <Btn variant="primary" onClick={handleLogin} style={{width:"100%",padding:"13px 0",fontSize:14}} disabled={loading}>
-            {loading?<><span style={{animation:"pulse 0.8s infinite"}}>Verificando</span></>:<><I n="chevR" size={15} color="#fff"/>Ingresar al Sistema</>}
+          <Btn variant="primary" onClick={handleSubmit} style={{width:"100%",padding:"13px 0",fontSize:14}} disabled={loading}>
+            {loading?<><span style={{animation:"pulse 0.8s infinite"}}>{isLogin?"Verificando...":"Registrando..."}</span></>:<><I n="check" size={15} color="#fff"/>{isLogin?"Ingresar al Sistema":"Completar Registro"}</>}
           </Btn>
-        </div>
-
-        {/* Demo hints */}
-        <div style={{marginTop:24,background:"rgba(255,255,255,0.02)",borderRadius:14,padding:18,border:"1px solid rgba(255,255,255,0.05)"}}>
-          <div style={{fontSize:10,color:"#1e3a5f",letterSpacing:"0.15em",fontFamily:"'Outfit',sans-serif",marginBottom:12,textAlign:"center"}}>ACCESOS DE DEMOSTRACIÓN</div>
-          <div style={{display:"flex",flexDirection:"column",gap:8}}>
-            {hints.map(h=>(
-              <div key={h.label} onClick={()=>{setEmail(h.email);setPass(h.pass);setError("");}} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 14px",background:"rgba(255,255,255,0.025)",borderRadius:10,cursor:"pointer",border:"1px solid rgba(255,255,255,0.04)",transition:"all 0.2s"}}
-                onMouseEnter={e=>{e.currentTarget.style.background="rgba(99,102,241,0.08)";e.currentTarget.style.borderColor="rgba(99,102,241,0.25)";}}
-                onMouseLeave={e=>{e.currentTarget.style.background="rgba(255,255,255,0.025)";e.currentTarget.style.borderColor="rgba(255,255,255,0.04)";}}
-              >
-                <span style={{fontSize:13,fontWeight:600,color:"#94a3b8",fontFamily:"'Outfit',sans-serif"}}>{h.label}</span>
-                <span style={{fontSize:11,color:"#334155",fontFamily:"'Roboto Mono',monospace"}}>{h.email}</span>
-              </div>
-            ))}
-          </div>
         </div>
       </div>
     </div>
@@ -446,9 +442,58 @@ function LoginScreen({onLogin}){
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 export default function App(){
+  const[firebaseUser,setFirebaseUser]=useState(null);
+  const[authLoading,setAuthLoading]=useState(true);
+
+  useEffect(()=>{
+    const unsub = onAuthStateChanged(auth, (u)=>{
+      setFirebaseUser(u);
+      setAuthLoading(false);
+    });
+    return ()=>unsub();
+  },[]);
+
+  // Rest of state
   const[user,setUser]=useState(null);
   const[view,setView]=useState("dashboard");
   const[sideOpen,setSideOpen]=useState(false);
+
+  // Sync Firebase Auth with App State
+  useEffect(()=>{
+    if(firebaseUser){
+      const email = firebaseUser.email.toLowerCase();
+      
+      // Reglas de asignación automática de rol por dominio/correo
+      let assignedRole = "cliente";
+      let assignedCargo = "Residente / Administrador Comunidad";
+
+      if (email.includes("@admin.com") || email.includes("admin@")) {
+        assignedRole = "administrador";
+        assignedCargo = "Jefe de Operaciones";
+      } else if (email.includes("@tecnico.com") || email.includes("tecnico@")) {
+        assignedRole = "tecnico";
+        assignedCargo = "Técnico de Terreno";
+      }
+
+      // Generar un nombre a partir del correo si no hay nombre guardado
+      const rawName = email.split("@")[0];
+      const fallbackName = rawName.charAt(0).toUpperCase() + rawName.slice(1).replace(/[0-9._]/g, ' ');
+
+      setUser({
+        email: email, 
+        name: firebaseUser.displayName || fallbackName, 
+        role: assignedRole, 
+        cargo: assignedCargo
+      });
+    } else {
+      setUser(null);
+    }
+  },[firebaseUser]);
+
+  const handleLogout = () => {
+    signOut(auth);
+  };
+
   const[elevs,setElevs]=useState(ELEVATORS_DATA);
   const[maints,setMaints]=useState(MAINTENANCES_DATA);
   const[clients,setClients]=useState(CLIENTS_DATA);
@@ -461,7 +506,11 @@ export default function App(){
   const[showForm,setShowForm]=useState(false);
   const[nm,setNm]=useState({title:"",building:"",technician:"",type:"preventiva",date:"",priority:"normal"});
 
-  if(!user) return <LoginScreen onLogin={u=>{setUser(u);setView("dashboard");}}/>;
+  if(authLoading) {
+    return <div style={{height:"100vh",background:"#050a14",display:"flex",alignItems:"center",justifyContent:"center",color:"#fff",fontFamily:"'Outfit'"}}>Cargando sistema seguro...</div>;
+  }
+
+  if(!user) return <LoginScreen />;
 
   const toast=(msg,color="#34d399")=>{setNotif({msg,color});setTimeout(()=>setNotif(null),3200);};
   const role=user.role;
@@ -589,7 +638,7 @@ export default function App(){
         </nav>
 
         <div style={{padding:"14px 8px",borderTop:"1px solid rgba(255,255,255,0.04)"}}>
-          <div onClick={()=>setUser(null)} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 11px",borderRadius:11,cursor:"pointer",transition:"all 0.2s"}}
+          <div onClick={handleLogout} style={{display:"flex",alignItems:"center",gap:12,padding:"10px 11px",borderRadius:11,cursor:"pointer",transition:"all 0.2s"}}
             onMouseEnter={e=>{e.currentTarget.style.background="rgba(239,68,68,0.08)";}}
             onMouseLeave={e=>{e.currentTarget.style.background="transparent";}}
           >
